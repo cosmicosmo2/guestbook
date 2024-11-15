@@ -1,5 +1,3 @@
-// server.js
-
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -7,68 +5,63 @@ require('dotenv').config();
 
 const app = express();
 
-// This lets us receive JSON data
-app.use(express.json());
-// This lets your website talk to this server
 app.use(cors());
+app.use(express.json());
 
-// Create a template for what a guestbook entry looks like
 const entrySchema = new mongoose.Schema({
   name: { type: String, required: true },
   message: { type: String, required: true },
   timestamp: { type: Date, default: Date.now }
 });
 
-// Create a way to store entries using our template
 const Entry = mongoose.model('Entry', entrySchema);
 
-// Add this code to server.js, before the app.listen line
-
-// Route to save a new entry
+// Your existing routes stay the same
 app.post('/api/entries', async (req, res) => {
   try {
-    // Get the name and message from the form
     const { name, message } = req.body;
-    
-    // Create a new entry
-    const entry = new Entry({
-      name: name,
-      message: message
-    });
-    
-    // Save it to MongoDB
+    const entry = new Entry({ name, message });
     await entry.save();
-    
-    // Send back a success message
     res.status(201).json(entry);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 });
 
-// Route to get all entries
 app.get('/api/entries', async (req, res) => {
   try {
-    // Get the latest 50 entries, newest first
     const entries = await Entry.find()
       .sort({ timestamp: -1 })
       .limit(50);
-    
-    // Send them back
     res.json(entries);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// Start the server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// Add this new delete route
+app.delete('/api/entries/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { adminkey } = req.headers;
+    
+    if (adminkey !== process.env.ADMIN_KEY) {
+      return res.status(401).json({ error: 'Wrong admin key!' });
+    }
+
+    await Entry.findByIdAndDelete(id);
+    res.json({ message: 'Entry deleted successfully!' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
-// Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
